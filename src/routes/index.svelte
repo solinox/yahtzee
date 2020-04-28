@@ -8,7 +8,7 @@
 
   body {
     font: 13px "Noto Sans";
-    background: #b34e7e;
+    background: #dfdfdf;
   }
 
   .main {
@@ -20,7 +20,8 @@
   }
 
   form {
-    background: #01b3ed;
+    background: #535353;
+    border-radius: 0.2em;
     padding: 3px;
     width: 100%;
 		display: flex;
@@ -31,8 +32,6 @@
     padding: 10px;
     width: 90%;
     margin-right: 0.5%;
-    background: #b34e7e;
-    color: #fff8b8;
 		font-size: 14px;
 	}
 
@@ -43,16 +42,17 @@
 	}
 
   form button {
-    background: #fff8b8;
+    background: #353535;
+    font-weight: bold;
     border: none;
     padding: 10px 15px;
-    color: #01b3ed;
+    color: #ebebeb;
   }
 
 	#chatWindow {
 		height: 450px;
     width: 100%;
-    border: 3px solid #01b3ed;
+    border: 3px solid #535353;
 		overflow: auto;
 	}
 
@@ -75,22 +75,22 @@
 		border-radius: 1em;
 		margin: 0.5em auto;
 		width: 95%;
-    background: #fff8b8;
-    color: #01b3ed;
+    background: #ebebeb;
+    color: #353535;
 		overflow-wrap: break-word;
   }
 
   #messages li:nth-child(odd) {
-    background: #01b3ed;
-    color: #fff8b8;
+    background: #353535;
+    color: #ebebeb;
   }
 
   ::placeholder {
-    color: #fff8b8;
+    color: #353535;
   }
 
 	#numUsers {
-		color: #fff8b8;
+		color: #353535;
 		padding: 1em;
 		font-size: 14px;
 	}
@@ -108,8 +108,9 @@
 
 <script>
   import io from "socket.io-client";
-	import { fade } from "svelte/transition";
-	
+  import { fade } from "svelte/transition";
+  import { tick } from 'svelte';
+
 	import Heading from "../components/Heading.svelte";
 
 	const socket = io();
@@ -119,13 +120,15 @@
   let messages = [greeting];
 	let message = "";
 	let name = 'Anonymous';
-	let numUsersConnected = 0;
+  let numUsersConnected = 0;
+  let players = 0;
+  let started = false;
 
-  socket.on("message", function(message) {		
+  socket.on("message", function(message) {
 		messages = messages.concat(message);
 		updateScroll();
 	});
-	
+
 	socket.on("user joined", function({message, numUsers}) {
 		messages = messages.concat(message);
 		numUsersConnected = numUsers;
@@ -135,15 +138,30 @@
 	socket.on("user left", function(numUsers) {
 		numUsersConnected = numUsers;
 		updateScroll();
-	});
+  });
 
 	function emitUserDisconnect() {
-		socket.emit('user disconnect', name); 
-	}
+		socket.emit('user disconnect', name);
+  }
+
+  function handleRoll() {
+    let dice = [];
+    for (let i = 0; i < 6; i++) {
+      dice.push(Math.floor(Math.random() * 6 + 1));
+    }
+    dice.sort(function(a, b) { return b - a });
+
+    const messageString = `${name} rolled: ${dice.join(' ')}`;
+
+    messages = messages.concat(messageString);
+    socket.emit("message", messageString);
+
+    updateScroll();
+  }
 
   function handleSubmit() {
 		message = message.trim();
-		
+
 		if (message == '') {
 			return;
 		}
@@ -163,18 +181,17 @@
 
 		message = "";
 	}
-	
-	function updateScroll() {
+
+	async function updateScroll() {
 		const chatWindow = document.getElementById('chatWindow');
-		setTimeout(() => {
-			chatWindow.scrollTop = chatWindow.scrollHeight;			
-		}, 0);
+		await tick();
+    chatWindow.scrollTop = chatWindow.scrollHeight;
 	}
 </script>
 
 <body>
   <div class="main">
-    <Heading text={'Chat App'} />
+    <Heading text="Yahtzee" />
     <div id="chatWindow">
       <ul id="messages">
         {#each messages as message}
@@ -185,7 +202,8 @@
     <form action="">
       <input id="m" autocomplete="off" {placeholder} bind:value={message} />
       <button on:click|preventDefault={handleSubmit}>Send</button>
+      <button on:click|preventDefault={handleRoll}>Roll</button>
     </form>
-		<p id="numUsers">There {numUsersConnected == 1 ? 'is' : 'are'} {numUsersConnected} {numUsersConnected == 1 ? 'user' : 'users'} currently chatting!</p>
+		<p id="numUsers">There {numUsersConnected == 1 ? 'is' : 'are'} {numUsersConnected} {numUsersConnected == 1 ? 'user' : 'users'} currently playing!</p>
   </div>
 </body>
