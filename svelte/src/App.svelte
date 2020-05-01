@@ -1,6 +1,8 @@
 <script>
 	import AWS from 'aws-sdk/global'
 	import AWSMqttClient from 'aws-mqtt'
+	import { tick } from 'svelte'
+	import { fade } from "svelte/transition";
 	import config from '../../config' // NOTE: make sure to copy config.example.js to config.js and fill in your values
 
 	// Initialize the Amazon Cognito credentials provider
@@ -33,7 +35,17 @@
 		const data = JSON.parse(payload);
 		if (eventHandlers.hasOwnProperty(data.event)) {
 			eventHandlers[data.event](data);
+		} else {
+			console.error('invalid message', payload)
 		}
+	})
+
+	client.on('connect', (topic, payload) => {
+		client.publish(config.topic, JSON.stringify({ event: 'userConnected', source: user }))
+	})
+
+	client.on('disconnect', (topic, payload) => {
+		client.publish(config.topic, JSON.stringify({ event: 'userDisconnected', source: user }))
 	})
 
 	const scoreOptions = ['6s', '5s', '4s', '3s', '2s', '1s', 'Full House', '4 of a kind', '3 of a kind', '2 of a kind', '2 Pair', 'Bonus', 'Yahtzee']
@@ -45,9 +57,12 @@
 	let turnOrder = []
 	let currentPlayer = undefined;
 	let dice = []
-
-	function messageHandler(data) {
-		messages = messages.concat(`${data.source}: ${data.message}`);
+	let chat;
+	async function messageHandler(data) {
+		messages = messages.concat(data.message)
+		await tick()
+		if (!chat) chat = document.getElementById('chat')
+		chat.scrollTop = chat.scrollHeight
 	}
 
 	function startGameHandler(data) {
@@ -78,7 +93,7 @@
 	}
 
 	function handleSendMessage(event) {
-		client.publish(config.topic, JSON.stringify({ event: 'message', source: user, message }))
+		client.publish(config.topic, JSON.stringify({ event: 'message', message: `${user}: ${message}`}))
 		message = ''
 	}
 
@@ -87,7 +102,6 @@
 		for (let i = 0; i < 6; i++) {
 			newDice.push(Math.floor(Math.random() * 6) + 1)
 		}
-		newDice.sort((a, b) => b - a)
 		dice = newDice
 		client.publish(config.topic, JSON.stringify({ event: 'userRolled', source: user, dice }))
 	}
@@ -97,48 +111,55 @@
 		let points = 0
 		client.publish(config.topic, JSON.stringify({ event: 'userScored', source: user, score, points }))
 	}
-
 </script>
 
 <style>
 	h1 {
 		color: purple;
 	}
-	.chatbox {
-		border: 0.2em solid black;
+	#chat {
+		border: 0.2em solid rgb(61, 61, 61);
 		border-radius: 0.2em;
-	}
-	ul {
-		height: 20vh;
+		height: 30vh;
 		overflow-y: auto;
 	}
+	#chat div {
+		padding: 0.5vh 1vw 0.5vh 1vw;
+		margin: 0;
+		background: rgb(61, 61, 61);
+		color: white;
+	}
+	#chat div:nth-child(odd) {
+		background: white;
+		color: rgb(61, 61, 61);;
+	}
+	img {
+		padding: 1vw;
+		height: 10vw;
+		width: 10vw;
+	}
 </style>
-<!--
-<div class="chatbox">
-	<ul>
-		{#each messages as msg}
-			<div>{msg}</div>
-		{:else}
-			<div>No messages</div>
-		{/each}
-	</ul>
-	<form>
-		<div>
-			<label for="message">Message to send:</label>
-			<input type="text" bind:value={message} />
-			<button type="button" on:click={handleSendMessage}>Send!</button>
-		</div>
-	</form>
-</div>
 
-<button on:click={handleRoll}>Roll</button>
-
-<div>
-	{#each dice as d}
-		<img height="20" width="20" alt={d} src={`/dice${d}.png`} />
+<div id="chat">
+	{#each messages as msg}
+		<div transition:fade>{msg}</div>
 	{/each}
 </div>
 
+<div>
+	<input type="text" bind:value={message} />
+	<button type="button" on:click|preventDefault={handleSendMessage}>Send</button>
+</div>
+
+<div>
+	<button on:click={handleRoll}>Roll</button>
+</div>
+<div>
+	{#each dice as d}
+		<img alt={d} src={`/static/dice${d}.png`} />
+	{/each}
+</div>
+<!--
 {#each users as u}
 	<div>{u} pts={scores[u]}</div>
 	{#each scoreOptions, i as option (i)}

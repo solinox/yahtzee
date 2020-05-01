@@ -44,6 +44,7 @@ module.exports = {
 
 	server: {
 		entry: config.server.entry(),
+		publicPath: '/static/',
 		output: config.server.output(),
 		target: 'node',
 		resolve: { alias, extensions, mainFields },
